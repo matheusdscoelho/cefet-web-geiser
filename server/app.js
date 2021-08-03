@@ -1,43 +1,76 @@
-// importação de dependência(s)
+const express = require("express");
+const app = express();
+const fs = require("fs");
 
+const PORT = 3000;
+const baseUrl = "D:/cefet-web-geiser/server";
+let dbJogador = {};
+let dbJogosJogador = {};
 
-// variáveis globais deste módulo
-const PORT = 3000
-const db = {}
+app.use(express.static("D:/cefet-web-geiser/client"));
 
+app.listen(PORT, function () {
+  console.log("Porta 3000!");
+});
 
-// carregar "banco de dados" (data/jogadores.json e data/jogosPorJogador.json)
-// você pode colocar o conteúdo dos arquivos json no objeto "db" logo abaixo
-// dica: 1-4 linhas de código (você deve usar o módulo de filesystem (fs))
+dbJogosJogador = JSON.parse(
+  fs.readFileSync(baseUrl + "/data/jogosPorJogador.json", {
+    encoding: "utf8",
+    flag: "r",
+  })
+);
 
+dbJogador = JSON.parse(
+  fs.readFileSync(baseUrl + "/data/jogadores.json", {
+    encoding: "utf8",
+    flag: "r",
+  })
+);
 
+const compare = (a, b) => {
+  if (a.playtime_forever < b.playtime_forever) {
+    return 1;
+  }
+  if (a.playtime_forever > b.playtime_forever) {
+    return -1;
+  }
+  return 0;
+};
 
+const getPlayerDeatils = (player) => {
+  app.get(`/jogador/${player.steamid}`, function (req, res) {
+    res.render(
+      "jogador",
+      Object.assign(player, dbJogosJogador[player.steamid])
+    );
+  });
+};
 
-// configurar qual templating engine usar. Sugestão: hbs (handlebars)
-//app.set('view engine', '???qual-templating-engine???');
-//app.set('views', '???caminho-ate-pasta???');
-// dica: 2 linhas
+const getNotPlayedGames = (games) => {
+  let totalNotPlayed = 0;
+  games.forEach((game) => {
+    if (game.playtime_forever === 0) totalNotPlayed++;
+  });
 
+  return totalNotPlayed;
+};
 
-// EXERCÍCIO 2
-// definir rota para página inicial --> renderizar a view index, usando os
-// dados do banco de dados "data/jogadores.json" com a lista de jogadores
-// dica: o handler desta função é bem simples - basta passar para o template
-//       os dados do arquivo data/jogadores.json (~3 linhas)
+dbJogador.players.forEach((player) => {
+  let games = dbJogosJogador[player.steamid].games.sort(compare).slice(0, 5);
+  games.forEach(
+    (e) => (e.playtime_forever = Math.floor(e.playtime_forever / 60))
+  );
+  player.notplayedgames = getNotPlayedGames(
+    dbJogosJogador[player.steamid].games
+  );
+  player.favoriteGame = games[0];
+  player.top5 = games;
+  getPlayerDeatils(player);
+});
 
+app.set("view engine", "hbs");
+app.set("views", baseUrl + "/views");
 
-
-// EXERCÍCIO 3
-// definir rota para página de detalhes de um jogador --> renderizar a view
-// jogador, usando os dados do banco de dados "data/jogadores.json" e
-// "data/jogosPorJogador.json", assim como alguns campos calculados
-// dica: o handler desta função pode chegar a ter ~15 linhas de código
-
-
-// EXERCÍCIO 1
-// configurar para servir os arquivos estáticos da pasta "client"
-// dica: 1 linha de código
-
-
-// abrir servidor na porta 3000 (constante PORT)
-// dica: 1-3 linhas de código
+app.get("/", function (req, res) {
+  res.render("index", dbJogador);
+});
